@@ -8,7 +8,8 @@ from langdetect import detect
 from sklearn.feature_extraction.text import CountVectorizer
 from scipy.cluster.hierarchy import linkage, cophenet, fcluster
 from scipy.spatial.distance import pdist
-
+from nltk.tokenize import sent_tokenize, word_tokenize
+from nltk.corpus import stopwords
 
 """set of parts of speech that constitutes a keyphrase
   Anette Hulth. 2003. Improved Automatic Keyword
@@ -47,8 +48,6 @@ class NoneStemmer:
 
 class TopicRank:
     def __init__(self, text):
-        self.text = nltk.word_tokenize(text)
-
         # mapping of keyphrases to its positions in text
         self.phrases = defaultdict(list)
 
@@ -58,6 +57,11 @@ class TopicRank:
         # use stemmer if language is supported by nltk
         self.stemmer = SnowballStemmer(iso_639_1[self.language]) if self.language in iso_639_1 else NoneStemmer()
         logging.debug('Using {} stemmer'.format(self.stemmer.__class__))
+        stop = stopwords.words(iso_639_1[self.language])
+        self.text = []
+        for sent in sent_tokenize(text):
+            for word in word_tokenize(sent):
+                self.text.append(word)
 
         self.topics = []
 
@@ -67,7 +71,7 @@ class TopicRank:
         counter = 0
         for word, pos in nltk.pos_tag(self.text):
             if pos in tag_set:
-                phrases[-1].append(self.stemmer.stem(word.lower()))
+                phrases[-1].append(self.stemmer.stem(word))
                 if len(phrases[-1]) == 1:
                     positions.append(counter)
             else:
@@ -75,7 +79,8 @@ class TopicRank:
                     phrases.append([])
             counter += 1
         for n, phrase in enumerate(phrases):
-            self.phrases[' '.join(sorted(phrase))] = [i for i, j in enumerate(phrases) if j == phrase]
+            if phrase:
+                self.phrases[' '.join(sorted(phrase))] = [i for i, j in enumerate(phrases) if j == phrase]
         logging.debug('Found {} keyphrases'.format(len(self.phrases)))
 
     def calc_distance(self, topic_a, topic_b):
@@ -116,16 +121,10 @@ class TopicRank:
         clusters = fcluster(Z, max_d, criterion='distance')
         cluster_data = defaultdict(list)
         for n, cluster in enumerate(clusters):
-            cluster_data[cluster].append(' '.join([str(i) for i in count.inverse_transform(bag.toarray()[n])[0]]))
+            cluster_data[cluster].append(' '.join(sorted([str(i) for i in count.inverse_transform(bag.toarray()[n])[0]])))
         logging.debug('Found {} keyphrase clusters (topics)'.format(len(cluster_data)))
-        # as stemming is used for compression we need to unstemm
-        #stem_to_phrase_map = {}
-        #for n, phrase in enumerate(self.phrases):
-        #    stem = ' '.join(sorted([self.stemmer.stem(word) for word in phrase.split(' ')]))
-        #    stem_to_phrase_map[stem] = phrase
-        #topic_clusters = [frozenset([stem_to_phrase_map[j] for j in i]) for i in cluster_data.values()]
         topic_clusters = [frozenset(i) for i in cluster_data.values()]
-
+        print(topic_clusters)
         # apply pagerank to find most prominent topics
         # Sergey Brin and Lawrence Page. 1998.
         # The Anatomy of a Large - Scale Hypertextual Web Search Engine.
