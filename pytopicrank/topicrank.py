@@ -67,7 +67,7 @@ class TopicRank:
         counter = 0
         for word, pos in nltk.pos_tag(self.text):
             if pos in tag_set:
-                phrases[-1].append(word.lower())
+                phrases[-1].append(self.stemmer.stem(word.lower()))
                 if len(phrases[-1]) == 1:
                     positions.append(counter)
             else:
@@ -75,7 +75,7 @@ class TopicRank:
                     phrases.append([])
             counter += 1
         for n, phrase in enumerate(phrases):
-            self.phrases[' '.join(phrase)] = [i for i, j in enumerate(phrases) if j == phrase]
+            self.phrases[' '.join(sorted(phrase))] = [i for i, j in enumerate(phrases) if j == phrase]
         logging.debug('Found {} keyphrases'.format(len(self.phrases)))
 
     def calc_distance(self, topic_a, topic_b):
@@ -104,8 +104,7 @@ class TopicRank:
         """
         # use term freq to convert phrases to vectors for clustering
         count = CountVectorizer()
-        bag = count.fit_transform([' '.join([self.stemmer.stem(word) for word in phrase.split(' ')])
-                                   for phrase in self.phrases])
+        bag = count.fit_transform(list(self.phrases.keys()))
 
         # apply HAC
         Z = linkage(bag.toarray(), strategy)
@@ -119,13 +118,13 @@ class TopicRank:
         for n, cluster in enumerate(clusters):
             cluster_data[cluster].append(' '.join([str(i) for i in count.inverse_transform(bag.toarray()[n])[0]]))
         logging.debug('Found {} keyphrase clusters (topics)'.format(len(cluster_data)))
-
         # as stemming is used for compression we need to unstemm
-        stem_to_phrase_map = {}
-        for n, phrase in enumerate(self.phrases):
-            stem = ' '.join(sorted([self.stemmer.stem(word) for word in phrase.split(' ')]))
-            stem_to_phrase_map[stem] = phrase
-        topic_clusters = [frozenset([stem_to_phrase_map[j] for j in i]) for i in cluster_data.values()]
+        #stem_to_phrase_map = {}
+        #for n, phrase in enumerate(self.phrases):
+        #    stem = ' '.join(sorted([self.stemmer.stem(word) for word in phrase.split(' ')]))
+        #    stem_to_phrase_map[stem] = phrase
+        #topic_clusters = [frozenset([stem_to_phrase_map[j] for j in i]) for i in cluster_data.values()]
+        topic_clusters = [frozenset(i) for i in cluster_data.values()]
 
         # apply pagerank to find most prominent topics
         # Sergey Brin and Lawrence Page. 1998.

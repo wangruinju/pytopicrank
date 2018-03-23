@@ -1,4 +1,4 @@
-from topicrank import TopicRank
+from pytopicrank import TopicRank
 
 
 def test_example():
