@@ -1,7 +1,7 @@
 from setuptools import setup, find_packages
 
 setup(name='pytopicrank',
-      version='0.3',
+      version='0.3.1',
       description='Implementation of TopicRank algorithm for keyphrase extraction from text',
       url='https://github.com/smirnov-am/pytopicrank',
       author='Alexey Smirnov',

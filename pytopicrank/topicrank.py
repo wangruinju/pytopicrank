@@ -1,3 +1,4 @@
+import re
 import nltk
 import logging
 from itertools import product
@@ -39,6 +40,11 @@ iso_639_1 = {'en': 'english',
 
 logging.basicConfig(format='%(asctime)s: %(levelname)s: %(message)s', level=logging.DEBUG)
 
+def preprocessor(text):
+    text = re.sub(r'<[^>]*>', '', text)
+    text = re.sub(r'[\W]+', ' ', text.lower())
+    return text
+
 
 class NoneStemmer:
     """ Return wwork provided. Used if no stemmer in nltk for a language"""
@@ -59,7 +65,7 @@ class TopicRank:
         logging.debug('Using {} stemmer'.format(self.stemmer.__class__))
         stop = stopwords.words(iso_639_1[self.language])
         self.text = []
-        for sent in sent_tokenize(text):
+        for sent in sent_tokenize(preprocessor(text)):
             for word in word_tokenize(sent):
                 self.text.append(word)
 
@@ -71,7 +77,9 @@ class TopicRank:
         counter = 0
         for word, pos in nltk.pos_tag(self.text):
             if pos in tag_set:
-                phrases[-1].append(self.stemmer.stem(word))
+                stemmed_word = self.stemmer.stem(word)
+                if stemmed_word and len(stemmed_word) > 1:
+                    phrases[-1].append(stemmed_word)
                 if len(phrases[-1]) == 1:
                     positions.append(counter)
             else:
@@ -121,10 +129,10 @@ class TopicRank:
         clusters = fcluster(Z, max_d, criterion='distance')
         cluster_data = defaultdict(list)
         for n, cluster in enumerate(clusters):
+            inv = count.inverse_transform(bag.toarray()[n])
             cluster_data[cluster].append(' '.join(sorted([str(i) for i in count.inverse_transform(bag.toarray()[n])[0]])))
         logging.debug('Found {} keyphrase clusters (topics)'.format(len(cluster_data)))
         topic_clusters = [frozenset(i) for i in cluster_data.values()]
-        print(topic_clusters)
         # apply pagerank to find most prominent topics
         # Sergey Brin and Lawrence Page. 1998.
         # The Anatomy of a Large - Scale Hypertextual Web Search Engine.
