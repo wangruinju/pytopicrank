@@ -1,3 +1,4 @@
+import re
 import nltk
 import logging
 from itertools import product
@@ -8,7 +9,8 @@ from langdetect import detect
 from sklearn.feature_extraction.text import CountVectorizer
 from scipy.cluster.hierarchy import linkage, cophenet, fcluster
 from scipy.spatial.distance import pdist
-
+from nltk.tokenize import sent_tokenize, word_tokenize
+from nltk.corpus import stopwords
 
 """set of parts of speech that constitutes a keyphrase
   Anette Hulth. 2003. Improved Automatic Keyword
@@ -37,27 +39,37 @@ iso_639_1 = {'en': 'english',
              'sv': 'swedish'}
 
 logging.basicConfig(format='%(asctime)s: %(levelname)s: %(message)s', level=logging.DEBUG)
+logger = logging.getLogger(__name__)
+
+
+def preprocessor(text):
+    text = re.sub(r'<[^>]*>', '', text)
+    text = re.sub(r'[\W]+', ' ', text.lower())
+    return text
 
 
 class NoneStemmer:
-    """ Return wwork provided. Used if no stemmer in nltk for a language"""
+    """ Return work provided. Used if no stemmer in nltk for a language"""
     def stem(self, word):
-        return word
+        return word.lower()
 
 
 class TopicRank:
     def __init__(self, text):
-        self.text = nltk.word_tokenize(text)
-
         # mapping of keyphrases to its positions in text
         self.phrases = defaultdict(list)
-
+        self.unstem_map = {}
         # need to know the language for stemming
         self.language = detect(text)
-        logging.debug('Detected {} language'.format(self.language))
+        logger.debug('Detected {} language'.format(self.language))
         # use stemmer if language is supported by nltk
         self.stemmer = SnowballStemmer(iso_639_1[self.language]) if self.language in iso_639_1 else NoneStemmer()
-        logging.debug('Using {} stemmer'.format(self.stemmer.__class__))
+        logger.debug('Using {} stemmer'.format(self.stemmer.__class__))
+        stop = stopwords.words(iso_639_1[self.language])
+        self.text = []
+        for sent in sent_tokenize(preprocessor(text)):
+            for word in word_tokenize(sent):
+                self.text.append(word)
 
         self.topics = []
 
@@ -67,7 +79,10 @@ class TopicRank:
         counter = 0
         for word, pos in nltk.pos_tag(self.text):
             if pos in tag_set:
-                phrases[-1].append(word.lower())
+                stemmed_word = self.stemmer.stem(word)
+                if stemmed_word and len(stemmed_word) > 1:
+                    phrases[-1].append(stemmed_word)
+                    self.unstem_map[stemmed_word] = (counter, word)
                 if len(phrases[-1]) == 1:
                     positions.append(counter)
             else:
@@ -75,8 +90,9 @@ class TopicRank:
                     phrases.append([])
             counter += 1
         for n, phrase in enumerate(phrases):
-            self.phrases[' '.join(phrase)] = [i for i, j in enumerate(phrases) if j == phrase]
-        logging.debug('Found {} keyphrases'.format(len(self.phrases)))
+            if phrase:
+                self.phrases[' '.join(sorted(phrase))] = [i for i, j in enumerate(phrases) if j == phrase]
+        logger.debug('Found {} keyphrases'.format(len(self.phrases)))
 
     def calc_distance(self, topic_a, topic_b):
         """
@@ -104,29 +120,22 @@ class TopicRank:
         """
         # use term freq to convert phrases to vectors for clustering
         count = CountVectorizer()
-        bag = count.fit_transform([' '.join([self.stemmer.stem(word) for word in phrase.split(' ')])
-                                   for phrase in self.phrases])
+        bag = count.fit_transform(list(self.phrases.keys()))
 
         # apply HAC
         Z = linkage(bag.toarray(), strategy)
         c, coph_dists = cophenet(Z, pdist(bag.toarray()))
         if c < 0.8:
-            logging.warning("Cophenetic distances {} < 0.8".format(c))
+            logger.warning("Cophenetic distances {} < 0.8".format(c))
 
         # identify clusters
         clusters = fcluster(Z, max_d, criterion='distance')
         cluster_data = defaultdict(list)
         for n, cluster in enumerate(clusters):
-            cluster_data[cluster].append(' '.join([str(i) for i in count.inverse_transform(bag.toarray()[n])[0]]))
-        logging.debug('Found {} keyphrase clusters (topics)'.format(len(cluster_data)))
-
-        # as stemming is used for compression we need to unstemm
-        stem_to_phrase_map = {}
-        for n, phrase in enumerate(self.phrases):
-            stem = ' '.join(sorted([self.stemmer.stem(word) for word in phrase.split(' ')]))
-            stem_to_phrase_map[stem] = phrase
-        topic_clusters = [frozenset([stem_to_phrase_map[j] for j in i]) for i in cluster_data.values()]
-
+            inv = count.inverse_transform(bag.toarray()[n])
+            cluster_data[cluster].append(' '.join(sorted([str(i) for i in count.inverse_transform(bag.toarray()[n])[0]])))
+        logger.debug('Found {} keyphrase clusters (topics)'.format(len(cluster_data)))
+        topic_clusters = [frozenset(i) for i in cluster_data.values()]
         # apply pagerank to find most prominent topics
         # Sergey Brin and Lawrence Page. 1998.
         # The Anatomy of a Large - Scale Hypertextual Web Search Engine.
@@ -153,8 +162,11 @@ class TopicRank:
         self._extract_phrases()
         self._identify_topics(strategy=cluster_strategy, max_d=max_d)
         if extract_strategy != 'first':
-            logging.warning("Using 'first' extract_strategy to extract keyphrases")
+            logger.warning("Using 'first' extract_strategy to extract keyphrases")
         for rank, topic in self.topics[:n]:
-            result.append(sorted(topic, key=lambda x: self.phrases[x][0])[0])
+            first_kp = sorted(topic, key=lambda x: self.phrases[x][0])[0]
+            unstem_kp_sort = sorted([self.unstem_map[i] for i in first_kp.split(' ')])
+            unstem_kp = ' '.join([i[1] for i in unstem_kp_sort])
+            result.append(unstem_kp)
         return result
 

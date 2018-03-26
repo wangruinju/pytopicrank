@@ -17,15 +17,24 @@ Keyphrase extraction is the task of identifying single or multi-word expressions
 - use center of the cluster from p.4 (`center`)
 - use most frequent (`frequent`)
 
+## Demo
+http://http://pytopicrank.s3-website-us-east-1.amazonaws.com/
+
+
+## Installation
+```bash
+pip install -e git+https://github.com/smirnov-am/pytopicrank.git#egg=pytopicrank
+```
+
 ## Usage
 
 ```python
-from topicrank import TopicRank
+from pytopicrank import TopicRank
 
 with open('tests/ion_exchange.txt') as f:
     text = f.read()
     tr = TopicRank(text)
     tr.get_top_n(n=2)
 
->>> ['ion exchange', 'mathematical model']
+>>> ['exchang ion', 'mathemat model']
 ```
