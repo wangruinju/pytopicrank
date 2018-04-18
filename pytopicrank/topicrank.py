@@ -164,9 +164,10 @@ class TopicRank:
         if extract_strategy != 'first':
             logger.warning("Using 'first' extract_strategy to extract keyphrases")
         for rank, topic in self.topics[:n]:
-            first_kp = sorted(topic, key=lambda x: self.phrases[x][0])[0]
-            unstem_kp_sort = sorted([self.unstem_map[i] for i in first_kp.split(' ')])
-            unstem_kp = ' '.join([i[1] for i in unstem_kp_sort])
-            result.append(unstem_kp)
+            if topic:
+                first_kp = topic[0] #sorted(topic, key=lambda x: self.phrases[x][0])[0]
+                unstem_kp_sort = sorted([self.unstem_map[i] for i in first_kp.split(' ')])
+                unstem_kp = ' '.join([i[1] for i in unstem_kp_sort])
+                result.append(unstem_kp)
         return result
 
