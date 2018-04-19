@@ -9,7 +9,7 @@ Keyphrase extraction is the task of identifying single or multi-word expressions
 1. convert each keyphrase to term frequency vector using bag of words, apply stemmer for better compression
 1. find clusters of keyphrases using Hierarchical Agglomerative Clustering (HAC) algorithm to form topics:
 - use `average` strategy
-- identify cluster by max depth of 1.25
+- identify cluster by max depth of 0.75
 5. use clusters as graph vertices and sum of distances between each keyphare of topic pairs as edge weight
 5. apply PageRank to identify most prominent topics
 5. For topN topics extract most significant keyphrases that represent this topic. Possible strategies
@@ -18,7 +18,7 @@ Keyphrase extraction is the task of identifying single or multi-word expressions
 - use most frequent (`frequent`)
 
 ## Demo
-http://http://pytopicrank.s3-website-us-east-1.amazonaws.com/
+http://pytopicrank.s3-website-us-east-1.amazonaws.com/
 
 
 ## Installation
@@ -36,5 +36,5 @@ with open('tests/ion_exchange.txt') as f:
     tr = TopicRank(text)
     tr.get_top_n(n=2)
 
->>> ['exchang ion', 'mathemat model']
+>>> ['ion exchange', 'mathematical model']
 ```
