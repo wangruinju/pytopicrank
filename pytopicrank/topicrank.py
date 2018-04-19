@@ -111,7 +111,7 @@ class TopicRank:
                         result += 1 / abs(a - b)
         return result
 
-    def _identify_topics(self, strategy='average', max_d=1.25):
+    def _identify_topics(self, strategy='average', max_d=0.75):
         """
         Group keyphrases to topics using Hierarchical Agglomerative Clustering (HAC) algorithm
         :param strategy: linkage strategy supported by scipy.cluster.hierarchy.linkage
